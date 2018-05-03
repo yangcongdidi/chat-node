@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="content">
+        <div id="room"></div>
+        <div id="room-list"></div>
+        <div id="messages"></div>
+        <form id="send-form">
+            <input id="send-message">
+            <input id="send-button" type="submit" value="send">
+            <div id="help">
+                chat commadnds:
+                <ul>
+                    <li>change nickname:<code>/nick[username]</code></li>
+                    <li>Join/create room:<code>/join[room name]</code></li>
+                </ul>
+            </div>
+        </form>
+    </div>
+</body>
+<script src="js/socket.io.js"></script>
+<script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+<script>
+    var Chat=function(socket){
+        this.socket=socket;
+    };
+
+    Chat.prototype.sendMessage=function(room,text){
+        var message={room:room,
+            text:text
+        };
+        this.socket.emit('message',message);
+    };
+
+    Chat.prototype.changeRoom =function(room){
+        this.socket.emit('join',{newRoom:room})
+    }
+
+    Chat.prototype.processCommand =function(command) {
+        var words =command.split(' ');
+        var command =words[0].substring(1,word[0].length).toLowercase();
+        var message =false;
+        switch (command){
+            case 'join' :
+                words.shift();
+                var room =words.join('');
+                this.changeRoom(room);
+                break;
+            case 'nick':
+                words.shift();
+                var name =words.join(' ');
+                this.socket.emit('nameAttempt',name);
+                break;
+            default:
+                message='你的命令无法识别';
+                break;
+        }
+        return message;
+    }
+
+    function divEscapedContentElement(message){
+        return $('<div></div>').text(message);
+    }
+
+    function divSystemContentElement(message){
+        return $('<div></div>').html('<i>'+message+'</i>');
+    }
+
+    function processUserInput(chatApp,socket){
+        var message =$ ('#send-message').val();
+        var systemMessage;
+        if(message.ChatAt(0) == '/'){
+            systemMessage=chatApp.processCommand(message);
+            if(systemMessage){
+                $("#messages").append(divSystemContentElement(systemMessage));
+            }else{
+                chatApp.sendMessage($('#room').text(),message);
+                $('#messages').append(divEscapedContentElement(message));
+                $('#messages').scrollTop($('#messages').prop('scollHeight'));
+            }
+        }
+            $("#send-message").val('');
+    }
+
+    var socket=io.connect();
+
+    $(document).ready(function(){
+        var ChatApp =new Chat(socket);
+        socket.on('nameResult',function(result){
+            var message;
+            if(result.success){
+                message='you are now known as' +result.name +'.';
+            }else{
+                message =result.message;
+            };
+            $('#messages').append(divSystemContentElement(message));
+        });
+        socket.on('joinResult',function(result){
+            $('#room').text(result.room);
+            $('#messages').append(divSystemContentElement('Room chaned'));
+        });
+        socket.on('rooms',function(rooms){
+            $('#room-list').empty();
+            for(var room in rooms){
+                room=room.substring(1,room.length);
+                if(room!=''){
+                    $('#room-list').append(divEscapedContentElement(room));
+                }
+            }
+        });
+        $('#room-list div').click(function() {
+            chatApp.processCommand('/join'+$(this).text());
+            $('#send-message').focus();
+        });
+        window.setInterval(function(){
+            socket.emit('rooms');
+        },1000);
+        $('#send-message').focus();
+
+        $("#send-form").onsubmit(function(event){
+            processUserInput(ChatApp,socket);
+            alert("a");
+            event.preventDefault();
+            return false;
+        });
+    });
+</script>
+</html>
